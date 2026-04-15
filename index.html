@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JDOTF</title>
+  <meta name="description" content="JDOTF">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      background: #000;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      -webkit-font-smoothing: antialiased;
+    }
+    .logo {
+      font-weight: 700;
+      font-size: clamp(4rem, 18vw, 13rem);
+      letter-spacing: -0.02em;
+      text-transform: uppercase;
+      user-select: none;
+      position: relative;
+      z-index: 20;
+      -webkit-tap-highlight-color: transparent;
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .logo { cursor: pointer; }
+    }
+    .static {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      z-index: 10;
+      transition: opacity 60ms;
+    }
+    body.breaking .static { opacity: 0.85; }
+    body.breaking .logo { animation: glitch 0.1s steps(1) infinite; }
+
+    @keyframes glitch {
+      0%   { transform: translate(0, 0); text-shadow: 4px 0 #ff1ad9, -4px 0 #18e1ff; }
+      20%  { transform: translate(-5px, 2px); text-shadow: -6px 0 #ff1ad9, 6px 0 #18e1ff; }
+      40%  { transform: translate(4px, -3px); text-shadow: 5px 0 #ff1ad9, -5px 0 #18e1ff; }
+      60%  { transform: translate(-3px, 4px); text-shadow: -4px 0 #ff1ad9, 4px 0 #18e1ff; }
+      80%  { transform: translate(3px, -1px); text-shadow: 7px 0 #ff1ad9, -7px 0 #18e1ff; }
+      100% { transform: translate(0, 0); text-shadow: 3px 0 #ff1ad9, -3px 0 #18e1ff; }
+    }
+
+    footer {
+      position: fixed;
+      bottom: 1.25rem;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.65rem;
+      opacity: 0.2;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      z-index: 30;
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+  <canvas class="static"></canvas>
+  <h1 class="logo">JDOTF</h1>
+  <footer>build 003 · april 2026</footer>
+
+  <script>
+    (() => {
+      const canvas = document.querySelector('.static');
+      const ctx = canvas.getContext('2d');
+      const logo = document.querySelector('.logo');
+      const body = document.body;
+
+      const W = 360, H = 200;
+      canvas.width = W;
+      canvas.height = H;
+      canvas.style.width = '100%';
+      canvas.style.height = '100%';
+
+      let running = false;
+      let raf;
+
+      function drawNoise() {
+        if (!running) return;
+        const img = ctx.createImageData(W, H);
+        const d = img.data;
+        for (let i = 0; i < d.length; i += 4) {
+          const v = Math.random() * 255 | 0;
+          d[i] = v; d[i + 1] = v; d[i + 2] = v; d[i + 3] = 255;
+        }
+        ctx.putImageData(img, 0, 0);
+        raf = requestAnimationFrame(drawNoise);
+      }
+
+      function startBreak() {
+        if (running) return;
+        running = true;
+        body.classList.add('breaking');
+        drawNoise();
+      }
+
+      function stopBreak() {
+        if (!running) return;
+        running = false;
+        cancelAnimationFrame(raf);
+        ctx.clearRect(0, 0, W, H);
+        body.classList.remove('breaking');
+      }
+
+      // Desktop — hover to break
+      logo.addEventListener('mouseenter', startBreak);
+      logo.addEventListener('mouseleave', stopBreak);
+
+      // Mobile — shake to break (one-shot, auto-restore)
+      let shakeTimeout;
+      function onShake() {
+        if (running) return;
+        startBreak();
+        clearTimeout(shakeTimeout);
+        shakeTimeout = setTimeout(stopBreak, 1800);
+      }
+
+      let lastX, lastY, lastZ, lastShake = 0;
+      function onMotion(e) {
+        const acc = e.accelerationIncludingGravity;
+        if (!acc || acc.x === null) return;
+        if (lastX !== undefined) {
+          const delta =
+            Math.abs(acc.x - lastX) +
+            Math.abs(acc.y - lastY) +
+            Math.abs(acc.z - lastZ);
+          if (delta > 25 && Date.now() - lastShake > 1500) {
+            lastShake = Date.now();
+            onShake();
+          }
+        }
+        lastX = acc.x; lastY = acc.y; lastZ = acc.z;
+      }
+
+      function enableMotion() {
+        if (typeof DeviceMotionEvent === 'undefined') return;
+        if (typeof DeviceMotionEvent.requestPermission === 'function') {
+          // iOS 13+
+          DeviceMotionEvent.requestPermission()
+            .then((response) => {
+              if (response === 'granted') {
+                window.addEventListener('devicemotion', onMotion);
+              }
+            })
+            .catch(() => {});
+        } else {
+          // Android, older iOS
+          window.addEventListener('devicemotion', onMotion);
+        }
+      }
+
+      // iOS needs a user gesture to grant motion permission — trigger on first touch.
+      window.addEventListener('touchstart', enableMotion, { once: true, passive: true });
+      // Also try immediately for platforms that don't need permission.
+      if (typeof DeviceMotionEvent !== 'undefined' &&
+          typeof DeviceMotionEvent.requestPermission !== 'function') {
+        window.addEventListener('devicemotion', onMotion);
+      }
+    })();
+  </script>
+</body>
+</html>
